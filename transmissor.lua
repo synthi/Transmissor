@@ -1,35 +1,11 @@
--- Transmissor v1.3.0
+-- Transmissor v1.3.3
 -- Shortwave SSB transmission simulator
 -- Audio input → SSB modulation → RF effects → SSB demodulation → output
--- Based on concepts from EdgeField but completely rewritten for norns
 --
 -- Changelog:
---   v1.3.0  User presets (row 7, 1-10), Sequencers (row 7, 11-14),
---           Pset persistence (storage.lua), Cosmic ping (Decay.ar),
---           Fix: clock.time → util.time
---   v1.2.0  Grid interactive (tap/hold ramp), presets rows 4-5,
---           Shift inherits main when nil, Dispersion hybrid (Meteor Scatter)
---   v1.1.2  Receiver hum 50Hz (audio domain), distance no override blend,
---           Presets: locut 80→826, rx_bw rises 11-16 (noise preserved)
---   v1.1.1  Whistle -20dB, SNR fix (multipath/AGC/compander),
---           Key click = crackle generator (no input gate),
---           EQ page 9: locut/hicut/rx_hpf params,
---           Fidelity presets control EQ,
---           Demod LPF 5kHz, graves/agudos restaurados en PRISTINE
---   v1.1.0  FIX CRITICAL: display congelado
---           Causa: norns 240102+ no llama redraw() automaticamente
---           Solucion: redraw_metro dedicado a 15fps
---           Engine: dst_tone aplica LPF a distorsion
---           Phase noise: PinkNoise LPF a 50Hz
---           AGC: ataque 2ms, SNR envelope-modulado
---           Auroral: flutter 20-80Hz
---           Multipath: .max(0.1) eliminado
---           Grid: page buttons instantaneos (momentary shift)
---           Presets: 16 fidelidad + 16 interferencia
---   v1.0.3  Fix LFO corrupting tx_freq
---   v1.0.2  FreShift → FreqShift
---   v1.0.1  CosOsc → SinOsc(pi/2)
---   v1.0    Initial release
+--   v1.3.3  Fix crash: load_module uses include() (norns native path resolve)
+--   v1.3.2  Fix crash: pcall guards on params:get
+--   v1.3.1  Click sounds reworked (no BPF), key_click gradient, page shift fix
 
 engine.name = 'Transmissor'
 
@@ -49,8 +25,7 @@ ptt_active = false  -- Key Click crackle: OFF by default
 -- =========================================================
 
 local function load_module(name)
-  local path = _path.this .. "lib/" .. name .. ".lua"
-  local ok, result = pcall(dofile, path)
+  local ok, result = pcall(include, 'lib/' .. name)
   if not ok then
     print("[Transmissor] Error loading " .. name .. ": " .. tostring(result))
     return {}
@@ -100,7 +75,6 @@ local function update_lfos()
   local carrier_depth = (carrier_depth_col / 15.0) * CARRIER_FREQ_DEPTH
   local carrier_sine  = math.sin(carrier_phase * math.pi * 2)
   local carrier_val   = tx_freq_val + (carrier_sine * carrier_depth)
-  -- LFO modula solo el synth de carrier ambiente, NO el inputSynth
   engine.set_carrier_freq(math.max(100, carrier_val))
 
   local static_depth = (static_depth_col / 15.0) * STATIC_DEPTH
@@ -143,9 +117,6 @@ end
 
 -- =========================================================
 -- ENCODERS
--- E1 = param 1 (or shift param 4) / distance mode
--- E2 = param 2 (or shift param 5) / distance mode
--- E3 = param 3 (or shift param 6) / distance mode
 -- =========================================================
 
 function enc(n, d)
@@ -162,7 +133,7 @@ function enc(n, d)
 
   local param_name
   if shift_active then
-    param_name = page.shift[n] or page.main[n]  -- inherit from main if shift is nil
+    param_name = page.shift[n] or page.main[n]
   else
     param_name = page.main[n]
   end
@@ -187,7 +158,7 @@ function key(n, z)
 end
 
 -- =========================================================
--- MAIN REDRAW — called by norns automatically
+-- MAIN REDRAW
 -- =========================================================
 
 function redraw()
@@ -205,39 +176,28 @@ function init()
   load_module("grid")
   load_module("ui")
 
-  -- Storage module (pset persistence)
   local Storage = include('lib/storage')
 
-  -- Setup all parameters
   if setup_parameters then setup_parameters() end
-
-  -- Wire params to engine commands
   if setup_param_actions then setup_param_actions() end
-
-  -- Initialize grid
   if init_grid then init_grid() end
 
-  -- Apply default presets
   if apply_fidelity_preset then apply_fidelity_preset(1) end
   if apply_interference_preset then apply_interference_preset(1) end
 
-  -- LFO + grid at 25fps
   lfo_metro = metro.init(function()
     update_lfos()
     if grid_redraw then grid_redraw() end
   end, 1/25)
   lfo_metro:start()
 
-  -- Screen redraw at 15fps (norns 240102+ does NOT auto-call redraw)
   redraw_metro = metro.init(function()
     redraw()
   end, 1/15)
   redraw_metro:start()
 
-  -- Bang params after metros are running
   params:bang()
 
-  -- Hook pset save/load for user presets + sequencer persistence
   params.action_write = function(filename, name, id)
     if Storage then Storage.save_data(id) end
   end
@@ -245,7 +205,7 @@ function init()
     if Storage then Storage.load_data(id) end
   end
 
-  print("[Transmissor] Ready v1.3.2")
+  print("[Transmissor] Ready v1.3.3")
 end
 
 -- =========================================================
