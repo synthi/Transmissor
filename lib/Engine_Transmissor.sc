@@ -118,20 +118,17 @@ Engine_Transmissor : CroneEngine {
             clickOnTrig = \t_ptt_on.tr(0);
             clickOffTrig = \t_ptt_off.tr(0);
 
-            // HOT SWITCH POP — 2ms dry relay crack (hard clip = aggressive snap)
-            clickPop = HPF.ar(
-                (WhiteNoise.ar(1.0) * 3.0).clip2(0.3),
-                3000
-            ) * EnvGen.ar(Env.perc(0.0005, 0.002), clickOnTrig)
-              * key_click * 2.0;
+            // HOT SWITCH POP — razor sharp digital hash
+            clickPop = (WhiteNoise.ar(10.0)).clip2(0.12)
+                * EnvGen.ar(Env.perc(0.0002, 0.003), clickOnTrig)
+                * key_click * 3.0;
 
-            // THUMP — dry mechanical crack (noise only, NO pitch, hard clipped)
+            // THUMP — dry crack NO resonance (HPF only, hard clipped to pulp)
             clickThump = HPF.ar(
-                (BPF.ar(WhiteNoise.ar(1.0), LFNoise1.kr(3).range(200, 400), 1.5) * 5.0)
-                    .clip2(0.3),
-                150
-            ) * EnvGen.ar(Env.perc(0.0005, 0.012), clickOnTrig)
-              * key_click * 2.5;
+                HPF.ar(WhiteNoise.ar(15.0), 1000).clip2(0.08),
+                500
+            ) * EnvGen.ar(Env.perc(0.0002, 0.006), clickOnTrig)
+              * key_click * 3.0;
 
             // CHIRP — RF oscillator startup instability (audio domain)
             clickChirp = SinOsc.ar(
@@ -139,14 +136,10 @@ Engine_Transmissor : CroneEngine {
             ) * EnvGen.ar(Env.perc(0.001, 0.025), clickOnTrig)
               * key_click * 1.2;
 
-            // SQUELCH TAIL — noise burst on PTT release (wavefold = complex distortion)
-            clickTail = HPF.ar(
-                (BPF.ar(WhiteNoise.ar(1.0),
-                    LFNoise1.kr(0.2).range(800, 2000), 0.5) * 6.0)
-                    .fold2(0.4),
-                600
-            ) * EnvGen.ar(Env.perc(0.005, LFNoise1.kr(0.1).range(0.08, 0.2)), clickOffTrig)
-              * key_click * 2.0;
+            // SQUELCH TAIL — broadband static burst, wavefold destroyed (NO BPF!)
+            clickTail = (WhiteNoise.ar(12.0)).fold2(0.1)
+                * EnvGen.ar(Env.perc(0.001, LFNoise1.kr(0.1).range(0.06, 0.15)), clickOffTrig)
+                * key_click * 3.0;
 
             // Mix click artifacts into signal pre-modulation (soft clipped)
             clickBus = (clickPop + clickThump + clickChirp).clip2(0.95);

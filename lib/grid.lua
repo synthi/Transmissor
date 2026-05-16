@@ -1,5 +1,5 @@
 -- =========================================================
--- GRID — Transmissor v1.4.0
+-- GRID — Transmissor v1.3.1
 -- Rows 1-3: interactive param bars (tap/hold ramp) + seq recording
 -- Rows 4-5: Fidelity/Interference presets + seq recording
 -- Row 6: empty
@@ -725,7 +725,7 @@ function init_grid()
   end
   _G.seq_active = false
 
-  print("[Transmissor] Grid connected (v1.4.0)")
+  print("[Transmissor] Grid connected (v1.3.1)")
 end
 
 function grid_cleanup()
