@@ -168,7 +168,7 @@ Engine_Transmissor : CroneEngine {
                 LFNoise1.kr(fade_rate).range(0.2, 1.0 - (fade_depth * 0.5)));
 
             // 10. DISPERSION (Ionospheric breathe + Meteor Scatter + Cosmic Pings)
-            meteorTrigger = Dust.kr(0.12);
+            meteorTrigger = Dust.ar(0.12);
             cosmicPing = Decay.ar(meteorTrigger, 0.05)
                 * BPF.ar(WhiteNoise.ar(1.0), tx_freq, 0.2)
                 * 0.03 * smear;
@@ -179,7 +179,7 @@ Engine_Transmissor : CroneEngine {
             );
             rf = AllpassC.ar(rf, 0.01,
                 LFNoise1.kr(0.3).range(0.0003, 0.0003 + smear * 0.004),
-                (Decay2.kr(meteorTrigger, 0.5, 2.0).range(0.1, 0.4) * (1.0 + (smear * 2.0))).clip(0.0, 0.5)
+                (Decay2.ar(meteorTrigger, 0.5, 2.0).range(0.1, 0.4) * (1.0 + (smear * 2.0))).clip(0.0, 0.5)
             );
 
             // 11. ATMOSPHERIC NOISE
