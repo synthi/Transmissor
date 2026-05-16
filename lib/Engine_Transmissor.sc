@@ -1,3 +1,20 @@
+// Engine_Transmissor.sc — Transmissor v1.0
+// Shortwave SSB transmission simulator engine for norns
+// Audio input → SSB modulation → RF effects → SSB demodulation → output
+//
+// Changelog:
+//   v1.0  (2024-05)  Initial release
+//     - Carrier synth (SinOsc + ionospheric pitch/amp LFO)
+//     - Noise synth (WhiteNoise BPF + impulse pops)
+//     - Master FX (bandpass + phaser + echo trail)
+//     - Input SSB chain: Hilbert modulator → RF effects → demodulator
+//     - 26 RF stages: multipath, doppler, fading, dispersion,
+//       atmospheric noise, galactic noise, heterodyne, power hum,
+//       sporadic E, auroral, SNR
+//     - RF FX (6 effects in RF domain): reverb, echo, chorus,
+//       comb filter, distortion, filterbank
+//     - Distance meta-control, kill trail, trail clear
+
 Engine_Transmissor : CroneEngine {
 
     // =====================================================
@@ -154,11 +171,14 @@ Engine_Transmissor : CroneEngine {
             input = (input * (1 + saturation * 4.0)).tanh *
                 (1.0 / (1.0 + saturation * 4.0).max(0.001));
 
-            // 4. SSB MODULATOR (USB)
+            // 4. SSB MODULATOR (USB via Hilbert)
+            // USB = real*cos(ωc) - imag*sin(ωc)
+            // CosOsc no existe en SC; se usa SinOsc con fase pi/2 para obtener coseno
             hilbert = Hilbert.ar(input);
 
-            rf = (hilbert[0] * CosOsc.ar(
-                    tx_freq * (1.0 + osc_jitter * 0.001 * LFNoise1.kr(3)))) -
+            rf = (hilbert[0] * SinOsc.ar(
+                    tx_freq * (1.0 + osc_jitter * 0.001 * LFNoise1.kr(3)),
+                    pi/2)) -  // pi/2 phase shift = cosine
                  (hilbert[1] * SinOsc.ar(tx_freq));
 
             // 5. CARRIER LEAK
@@ -301,9 +321,11 @@ Engine_Transmissor : CroneEngine {
                 (WhiteNoise.ar(1.0) * (1.0 - link_quality) * 0.1);
 
             // 19. SSB DEMODULATOR
-            demod = rf * CosOsc.ar(
+            // Demodular: multiplicar RF por coseno de portadora local
+            demod = rf * SinOsc.ar(
                 tx_freq + detune +
-                (rx_drift * LFNoise1.kr(0.05).range(-5, 5))
+                (rx_drift * LFNoise1.kr(0.05).range(-5, 5)),
+                pi/2
             );
             demod = LPF.ar(demod, 4000);
 
