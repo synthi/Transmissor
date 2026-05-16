@@ -1,9 +1,12 @@
-// Engine_Transmissor.sc — Transmissor v1.0
+// Engine_Transmissor.sc — Transmissor v1.0.2
 // Shortwave SSB transmission simulator engine for norns
 // Audio input → SSB modulation → RF effects → SSB demodulation → output
 //
 // Changelog:
-//   v1.0  (2024-05)  Initial release
+//   v1.0.2  (fix)   FreShift → FreqShift (UGen correcta en SC)
+//   v1.0.1  (fix)   CosOsc → SinOsc(pi/2). Comentarios en arg eliminados.
+//                     doppler.neg, pow(), K2A, header con changelog
+//   v1.0    (2024-05)  Initial release
 //     - Carrier synth (SinOsc + ionospheric pitch/amp LFO)
 //     - Noise synth (WhiteNoise BPF + impulse pops)
 //     - Master FX (bandpass + phaser + echo trail)
@@ -216,10 +219,10 @@ Engine_Transmissor : CroneEngine {
 
             rf = rfMultipath;
 
-            // 8. DOPPLER SPREAD
-            rfEffects = FreShift.ar(rf,
+            // 8. DOPPLER SPREAD (FreqShift simula desplazamiento Doppler ionosférico)
+            rfEffects = FreqShift.ar(rf,
                 LFNoise1.kr(0.3).range(doppler.neg, doppler));
-            rfEffects = rfEffects + (FreShift.ar(rf,
+            rfEffects = rfEffects + (FreqShift.ar(rf,
                 LFNoise1.kr(0.7).range(doppler.neg * 0.5, doppler * 0.5)) * 0.3);
             rf = rfEffects;
 
@@ -268,7 +271,8 @@ Engine_Transmissor : CroneEngine {
             // RF FX — applied in RF domain, then demodulated
             // =====================================================
 
-            // 17a. RF REVERB
+            // 17a. RF REVERB (FreeVerb en RF → phantoms detuned)
+            // Select.ar: select = when selector > 0, pick second input
             rfReverb = Select.ar(rev_wet > 0.001, [ rf,
                 FreeVerb.ar(rf, rev_wet, rev_decay, rev_damp) ]);
 
