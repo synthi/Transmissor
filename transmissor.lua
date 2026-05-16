@@ -1,9 +1,14 @@
--- Transmissor v1.1.0
+-- Transmissor v1.1.1
 -- Shortwave SSB transmission simulator
 -- Audio input → SSB modulation → RF effects → SSB demodulation → output
 -- Based on concepts from EdgeField but completely rewritten for norns
 --
 -- Changelog:
+--   v1.1.1  Whistle -20dB, SNR fix (multipath/AGC/compander),
+--           Key click = crackle generator (no input gate),
+--           EQ page 9: locut/hicut/rx_hpf params,
+--           Fidelity presets control EQ,
+--           Demod LPF 5kHz, graves/agudos restaurados en PRISTINE
 --   v1.1.0  FIX CRITICAL: display congelado
 --           Causa: norns 240102+ no llama redraw() automaticamente
 --           Solucion: redraw_metro dedicado a 15fps
@@ -30,7 +35,7 @@ current_fidelity = 1
 current_interference = 1
 distance_mode = false
 shift_active = false
-ptt_active = true  -- PTT gate: true = transmit (key_click=1)
+ptt_active = false  -- Key Click crackle: OFF by default
 
 -- =========================================================
 -- MODULE LOADER
@@ -214,9 +219,6 @@ function init()
 
   -- Bang params after metros are running
   params:bang()
-  if ptt_active then
-    params:set("key_click", 1)
-  end
 
   print("[Transmissor] Ready")
 end

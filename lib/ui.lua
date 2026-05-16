@@ -1,5 +1,5 @@
 -- =========================================================
--- UI — Transmissor v1.1.0
+-- UI — Transmissor v1.1.1
 -- OLED redraw — guaranteed screen.update()
 -- =========================================================
 
@@ -24,7 +24,7 @@ function ui_redraw()
 
     local page = pages[cp]
     if not page then page = pages[1] end
-    local page_str = string.format("%02d/08", cp)
+    local page_str = string.format("%02d/09", cp)
 
     -- Header suffix
     local suffix = ""

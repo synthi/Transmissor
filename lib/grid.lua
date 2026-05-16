@@ -1,5 +1,5 @@
 -- =========================================================
--- GRID — Transmissor v1.1.0
+-- GRID — Transmissor v1.1.1
 -- Differential grid state management + key handler
 -- Hold page button = shift for that page
 -- Rows 1-3: active params, Row 4: empty separator
@@ -20,6 +20,7 @@ local page_cols = {
   [4] = 4,   -- SPACE
   [5] = 5,   -- TEXTURE
   [6] = 6,   -- DESTROY
+  [9] = 9,   -- EQ
   [10] = 1,  -- TX
   [11] = 2,  -- AIR
   [12] = 3,  -- NOISE
@@ -232,8 +233,8 @@ function grid_redraw()
     grid_set_led(7, 8, 0)
     -- Col 8: DISTANCE
     grid_set_led(8, 8, _G.distance_mode and 11 or 1)
-    -- Col 9: empty
-    grid_set_led(9, 8, 0)
+    -- Col 9: EQ page
+    grid_set_led(9, 8, (_G.current_page == 9) and 11 or 1)
     -- Cols 10-14: Pages (TX=10, AIR=11, NOISE=12, RX=13, MIX=14)
     grid_set_led(10, 8, (_G.current_page == 1) and 11 or 1)
     grid_set_led(11, 8, (_G.current_page == 2) and 11 or 1)

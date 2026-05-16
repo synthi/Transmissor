@@ -1,14 +1,15 @@
-// Engine_Transmissor.sc — Transmissor v1.1.0
+// Engine_Transmissor.sc — Transmissor v1.1.1
 // Shortwave SSB transmission simulator engine for norns
 // Audio input → SSB modulation → RF effects → SSB demodulation → output
 //
 // Changelog:
-//   v1.0.7  Phase noise fix (PinkNoise LPF), Auroral 20-80Hz,
-//           Heterodyne in RF domain, PTT gate, AGC 2ms attack,
-//           SNR envelope-modulated, Sporadic E boost, ADC TPDF dither,
-//           Multipath .max(0.1) removed
-//   v1.0.2  FreShift → FreqShift
-//   v1.0.1  CosOsc → SinOsc(pi/2)
+//   v1.1.1  Whistle -20dB, SNR fix (multipath/AGC/compander),
+//           Key click = crackle generator (no input gate),
+//           EQ params: locut/hicut/rx_hpf (page 9),
+//           Fidelity presets control EQ,
+//           Demod LPF 5kHz, Graves/agudos restaurados en PRISTINE
+//   v1.1.0  FIX: redraw_metro (norns 240102+ no auto-redraw)
+//   v1.0.7  Phase noise fix, Auroral, PTT, AGC 2ms
 //   v1.0    Initial release
 
 Engine_Transmissor : CroneEngine {
@@ -58,7 +59,7 @@ Engine_Transmissor : CroneEngine {
 
         // MASTER FX
         masterSynth = {
-            arg bandwidth = 2400, locut = 300, phaserFreq = 0.15,
+            arg bandwidth = 4000, locut = 80, phaserFreq = 0.15,
                 ambientVol = 0.4, trailWet = 0.0, trailTime = 0.45,
                 trailFeedback = 0.0, volume = 0.7;
             var voiceIn, ambientIn, sig, trail, wetSmooth, fbSmooth;
@@ -87,7 +88,7 @@ Engine_Transmissor : CroneEngine {
                 detune = 0.0, rx_drift = 0.1, agc_rate = 0.4,
                 agc_breath = 0.1, rx_bw = 2400, adc_depth = 16,
                 input_trim = 1.0, blend = 1.0, floor = 0.02,
-                hum_level = 0.05, distance = 0.0,
+                hum_level = 0.05, distance = 0.0, rx_hpf = 60,
                 rev_wet = 0.0, rev_decay = 0.3, rev_damp = 0.5,
                 ech_wet = 0.0, ech_time = 0.3, ech_fb = 0.3,
                 cho_wet = 0.0, cho_rate = 0.5, cho_depth = 0.005,
@@ -105,8 +106,9 @@ Engine_Transmissor : CroneEngine {
             // 1. INPUT
             input = SoundIn.ar(0) * input_trim;
 
-            // 2. PTT GATE (key_click = grid toggle: 1=transmit, 0=muted)
-            input = input * key_click;
+            // 2. KEY CLICK (crackle generator — NOT an input gate)
+            // Authentic telegraph key click: saturated noise burst
+            input = input + ((WhiteNoise.ar(1.0) * Dust.ar(key_click * 80)).tanh * 0.12);
 
             // 3. PRE-MOD SATURATION
             input = (input * (1 + saturation * 4.0)).tanh *
@@ -130,8 +132,8 @@ Engine_Transmissor : CroneEngine {
             harmonicSig = harmonicSig + (SinOsc.ar(tx_freq * 4.0) * 0.1);
             rf = rf + (harmonic_drive * harmonicSig);
 
-            // 7. MULTIPATH (5 taps, NO .max floor = 0 absolute when multipath=0)
-            rfMultipath = rf * 0.5;
+            // 7. MULTIPATH (5 taps, direct path dominates like real RF)
+            rfMultipath = rf * 0.85;
             tapDelay = LFNoise1.kr(0.5 + (multipath * 0.5))
                 .range(0.002, 0.002 + multipath * 0.015);
             tapGain = 0.35 * multipath;
@@ -171,8 +173,8 @@ Engine_Transmissor : CroneEngine {
             // 12. GALACTIC NOISE
             rf = rf + (space_hum * 0.02 * BrownNoise.ar(1.0));
 
-            // 13. HETERODYNE WHISTLE (interfering carrier in RF → demodulates naturally)
-            rf = rf + (whistle * 0.06 * SinOsc.ar(tx_freq + LFNoise1.kr(0.1).range(300, 3000)));
+            // 13. HETERODYNE WHISTLE (-20dB: subtle, not overwhelming)
+            rf = rf + (whistle * 0.006 * SinOsc.ar(tx_freq + LFNoise1.kr(0.1).range(300, 3000)));
 
             // 14. POWER LINE HUM
             rf = rf + (hum * 0.04 * (SinOsc.ar(60) * 0.5 + SinOsc.ar(120) * 0.3 + SinOsc.ar(180) * 0.15));
@@ -209,9 +211,9 @@ Engine_Transmissor : CroneEngine {
             noiseFloor = WhiteNoise.ar(1.0) * (1.0 - link_quality) * 0.1 * (1.0 - sigEnv.min(1.0));
             rf = (rf * link_quality) + noiseFloor;
 
-            // 19. SSB DEMODULATOR
+            // 19. SSB DEMODULATOR (LPF 5kHz for more air in PRISTINE)
             demod = rf * SinOsc.ar(tx_freq + (rx_drift * LFNoise1.kr(0.05).range(-5, 5)), pi/2);
-            demod = LPF.ar(demod, 4000);
+            demod = LPF.ar(demod, 5000);
 
             // 19b. DETUNE
             detuneSmooth = detune.lag(0.05);
@@ -223,14 +225,14 @@ Engine_Transmissor : CroneEngine {
             ditherSig = (WhiteNoise.ar(1.0) + WhiteNoise.ar(1.0)) * (0.5 / pow(2, adc_depth));
             sig = (demod + ditherSig).round(2.0 / pow(2, adc_depth));
 
-            // 21. AGC (2ms attack catches static peaks)
+            // 21. AGC (realistic SSB receiver: high threshold, moderate gain)
             agcKey = sig.abs;
-            compSig = Compander.ar(sig, agcKey, 0.02, 1.0, 0.2, 0.002, agc_rate.max(0.05));
-            sig = LeakDC.ar(compSig) * (10.0 + (agc_breath * 15.0));
-            sig = sig.tanh;
+            compSig = Compander.ar(sig, agcKey, 0.1, 1.0, 0.2, 0.002, agc_rate.max(0.05));
+            sig = LeakDC.ar(compSig) * (4.0 + (agc_breath * 6.0));
+            sig = sig.clip2(0.95);
 
-            // 22. RX BANDWIDTH
-            sig = HPF.ar(sig, 100);
+            // 22. RX BANDWIDTH (HPF from param, not hardcoded)
+            sig = HPF.ar(sig, rx_hpf);
             sig = LPF.ar(sig, rx_bw);
 
             // 23. BLEND
@@ -296,6 +298,9 @@ Engine_Transmissor : CroneEngine {
         this.addCommand("set_noise_pops", "f", { arg msg; noiseSynth.set(\popRate, msg[1]); });
         this.addCommand("set_master_bw", "f", { arg msg; masterSynth.set(\bandwidth, msg[1]); });
         this.addCommand("set_master_ambient", "f", { arg msg; masterSynth.set(\ambientVol, msg[1]); });
+        this.addCommand("set_locut", "f", { arg msg; masterSynth.set(\locut, msg[1]); });
+        this.addCommand("set_hicut", "f", { arg msg; masterSynth.set(\bandwidth, msg[1]); });
+        this.addCommand("set_rx_hpf", "f", { arg msg; inputSynth.set(\rx_hpf, msg[1]); });
 
         // DISTANCE
         this.addCommand("set_distance", "f", { arg msg;
