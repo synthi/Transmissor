@@ -299,16 +299,28 @@ function grid_key(x, y, z)
       return
     end
 
-    -- PAGE BUTTONS — press = change page, hold >150ms on release = toggle shift
+    -- PAGE BUTTONS — same page = instant shift toggle, different page = change + hold for shift
     if is_page_col(x) then
       if z == 1 then
-        _G.current_page = page_cols[x]
-        _G.distance_mode = false
-        page_press_time = util.time()
-      else
-        local hold = util.time() - page_press_time
-        if hold > 0.15 then
+        local target_page = page_cols[x]
+        if target_page == _G.current_page then
+          -- Same page: instant shift toggle
           _G.shift_active = not _G.shift_active
+          page_press_time = 0
+        else
+          -- Different page: change page + start timer
+          _G.current_page = target_page
+          _G.distance_mode = false
+          page_press_time = util.time()
+        end
+      else
+        -- Release: toggle shift only if we changed pages + held >150ms
+        if page_press_time > 0 then
+          local hold = util.time() - page_press_time
+          if hold > 0.15 then
+            _G.shift_active = not _G.shift_active
+          end
+          page_press_time = 0
         end
       end
       return
