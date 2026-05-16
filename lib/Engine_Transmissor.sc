@@ -1,8 +1,9 @@
-// Engine_Transmissor.sc — Transmissor v1.2.0
+// Engine_Transmissor.sc — Transmissor v1.3.0
 // Shortwave SSB transmission simulator engine for norns
 // Audio input → SSB modulation → RF effects → SSB demodulation → output
 //
 // Changelog:
+//   v1.3.0  Cosmic ping (Decay.ar + .clip 0.5), Meteor scatter stable
 //   v1.2.0  Dispersion hybrid (Meteor Scatter), no accidental blips
 //   v1.1.2  Receiver hum 50Hz (audio domain), distance no override blend
 //   v1.1.1  Whistle -20dB, SNR fix (multipath/AGC/compander),
@@ -103,6 +104,7 @@ Engine_Transmissor : CroneEngine {
             var tapDelay, tapGain, harmonicSig;
             var rfReverb, rfEcho, rfChorus, rfComb, rfDist, rfFBank;
             var detuneSmooth, detuneAtten;
+            var meteorTrigger, cosmicPing;
             var sigEnv, noiseFloor, eTrig, eEnv, ditherSig;
 
             // 1. INPUT
@@ -165,14 +167,20 @@ Engine_Transmissor : CroneEngine {
                 tx_freq + (fade_depth * LFNoise1.kr(fade_rate * 2).range(tx_freq.neg * 0.3, tx_freq * 0.3)),
                 LFNoise1.kr(fade_rate).range(0.2, 1.0 - (fade_depth * 0.5)));
 
-            // 10. DISPERSION (Hybrid: Ionospheric breathing + Meteor Scatter)
-            // Resonance modulated by smear — no accidental blips from noise floor
+            // 10. DISPERSION (Ionospheric breathe + Meteor Scatter + Cosmic Pings)
+            meteorTrigger = Dust.kr(0.12);
+            cosmicPing = Decay.ar(meteorTrigger, 0.05)
+                * BPF.ar(WhiteNoise.ar(1.0), tx_freq, 0.2)
+                * 0.03 * smear;
+            rf = rf + cosmicPing;
             rf = AllpassC.ar(rf, 0.01,
                 LFNoise1.kr(0.2).range(0.0005, 0.0005 + smear * 0.005),
-                LFNoise1.kr(0.05).range(0.1, 0.3) * (1.0 + (smear * 2.0)));
+                (LFNoise1.kr(0.05).range(0.1, 0.3) * (1.0 + (smear * 2.0))).clip(0.0, 0.5)
+            );
             rf = AllpassC.ar(rf, 0.01,
                 LFNoise1.kr(0.3).range(0.0003, 0.0003 + smear * 0.004),
-                Decay2.kr(Dust.kr(0.12), 0.5, 2.0).range(0.1, 0.4) * (1.0 + (smear * 2.0)));
+                (Decay2.kr(meteorTrigger, 0.5, 2.0).range(0.1, 0.4) * (1.0 + (smear * 2.0))).clip(0.0, 0.5)
+            );
 
             // 11. ATMOSPHERIC NOISE
             rf = rf + (atmos * 0.08 * LPF.ar(Dust.ar(LFNoise1.kr(0.1).range(5, 40)), 200));

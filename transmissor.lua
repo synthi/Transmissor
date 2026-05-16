@@ -1,9 +1,12 @@
--- Transmissor v1.1.2
+-- Transmissor v1.3.0
 -- Shortwave SSB transmission simulator
 -- Audio input → SSB modulation → RF effects → SSB demodulation → output
 -- Based on concepts from EdgeField but completely rewritten for norns
 --
 -- Changelog:
+--   v1.3.0  User presets (row 7, 1-10), Sequencers (row 7, 11-14),
+--           Pset persistence (storage.lua), Cosmic ping (Decay.ar),
+--           Fix: clock.time → util.time
 --   v1.2.0  Grid interactive (tap/hold ramp), presets rows 4-5,
 --           Shift inherits main when nil, Dispersion hybrid (Meteor Scatter)
 --   v1.1.2  Receiver hum 50Hz (audio domain), distance no override blend,
@@ -195,6 +198,9 @@ function init()
   load_module("grid")
   load_module("ui")
 
+  -- Storage module (pset persistence)
+  local Storage = include('lib/storage')
+
   -- Setup all parameters
   if setup_parameters then setup_parameters() end
 
@@ -224,7 +230,15 @@ function init()
   -- Bang params after metros are running
   params:bang()
 
-  print("[Transmissor] Ready")
+  -- Hook pset save/load for user presets + sequencer persistence
+  params.action_write = function(filename, name, id)
+    if Storage then Storage.save_data(id) end
+  end
+  params.action_read = function(filename, silent, id)
+    if Storage then Storage.load_data(id) end
+  end
+
+  print("[Transmissor] Ready v1.3.0")
 end
 
 -- =========================================================
