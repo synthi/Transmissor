@@ -47,7 +47,8 @@ end
 -- METRO REFERENCES (prevent GC from collecting them)
 -- =========================================================
 
-local main_metro = nil  -- single metro for LFO + grid
+local lfo_metro = nil    -- 25fps: LFO + grid
+local redraw_metro = nil -- 15fps: screen redraw
 
 -- =========================================================
 -- LFO STATE (inherited concept from EdgeField)
@@ -201,24 +202,26 @@ function init()
   if apply_fidelity_preset then apply_fidelity_preset(1) end
   if apply_interference_preset then apply_interference_preset(1) end
 
-  -- Single metro for LFO + grid at 25fps
-  main_metro = metro.init(function()
+  -- LFO + grid at 25fps
+  lfo_metro = metro.init(function()
     update_lfos()
     if grid_redraw then grid_redraw() end
   end, 1/25)
-  main_metro:start()
+  lfo_metro:start()
+
+  -- Screen redraw at 15fps (norns 240102+ does NOT auto-call redraw)
+  redraw_metro = metro.init(function()
+    redraw()
+  end, 1/15)
+  redraw_metro:start()
+
+  -- Bang params after metros are running
+  params:bang()
+  if ptt_active then
+    params:set("key_click", 1)
+  end
 
   print("[Transmissor] Ready")
-  -- init() returns HERE — norns registers redraw() callback
-
-  -- Heavy work deferred 600ms so norns screen refresh starts cleanly
-  metro.init(function()
-    params:bang()
-    if ptt_active then
-      params:set("key_click", 1)
-    end
-    print("[Transmissor] Post-init complete")
-  end, 0.6, 1):start()
 end
 
 -- =========================================================
@@ -226,7 +229,8 @@ end
 -- =========================================================
 
 function cleanup()
-  if main_metro then main_metro:stop() end
+  if lfo_metro then lfo_metro:stop() end
+  if redraw_metro then redraw_metro:stop() end
   if grid_cleanup then grid_cleanup() end
   pcall(function() engine.trail_clear(0.0) end)
   print("[Transmissor] Cleaned up")
