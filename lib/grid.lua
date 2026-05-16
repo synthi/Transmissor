@@ -1,8 +1,10 @@
 -- =========================================================
--- GRID — Transmissor v1.1.2
+-- GRID — Transmissor v1.2.0
 -- Differential grid state management + key handler
--- Hold page button = shift for that page
--- Rows 1-3: active params, Row 4: empty separator
+-- Rows 1-3: interactive param bars (tap/hold ramp)
+-- Rows 4-5: Fidelity/Interference presets
+-- Row 8: Controls
+-- Shift params inherit from main when nil
 -- =========================================================
 
 local grid_state = {}
@@ -34,6 +36,73 @@ local function is_page_col(x)
 end
 
 -- =========================================================
+-- RAMP SYSTEM (for grid hold interaction)
+-- =========================================================
+
+-- Track press times for rows 1-3
+local press_time = {}  -- [y] = clock time
+
+-- Ramp state per param row
+local ramp_state = {
+  [1] = { active = false, param = nil, start_val = 0, target_val = 0,
+          start_time = 0, duration = 0 },
+  [2] = { active = false, param = nil, start_val = 0, target_val = 0,
+          start_time = 0, duration = 0 },
+  [3] = { active = false, param = nil, start_val = 0, target_val = 0,
+          start_time = 0, duration = 0 },
+}
+
+local ramp_metro = nil
+
+-- Get param name for a row (shift inherits from main when nil)
+local function get_param_for_row(page, row)
+  local sa = _G.shift_active or false
+  if sa and page.shift then
+    return page.shift[row] or page.main[row]
+  else
+    return page.main[row]
+  end
+end
+
+-- Start a ramp for a param row
+local function start_ramp(row, param_name, target_norm, hold_time)
+  local minv = param_min(param_name)
+  local maxv = param_max(param_name)
+  local target_val = minv + target_norm * (maxv - minv)
+  local current_val = params:get(param_name) or minv
+
+  ramp_state[row] = {
+    active = true,
+    param = param_name,
+    start_val = current_val,
+    target_val = target_val,
+    start_time = clock.time(),
+    duration = math.max(0.1, hold_time * 2.0)  -- ramp = 2x hold time
+  }
+end
+
+-- Process ramps (called at 25fps)
+local function process_ramps()
+  local now = clock.time()
+  for row = 1, 3 do
+    local rs = ramp_state[row]
+    if rs.active then
+      local elapsed = now - rs.start_time
+      local progress = math.min(1.0, elapsed / rs.duration)
+      -- Ease-in-out curve
+      local eased = progress < 0.5
+        and (2 * progress * progress)
+        or (1 - ((-2 * progress + 2) ^ 2) / 2)
+      local val = rs.start_val + (rs.target_val - rs.start_val) * eased
+      params:set(rs.param, val)
+      if progress >= 1.0 then
+        rs.active = false
+      end
+    end
+  end
+end
+
+-- =========================================================
 -- GRID LED SET (differential)
 -- =========================================================
 
@@ -60,7 +129,6 @@ function grid_key(x, y, z)
     end
 
     -- PAGE BUTTONS — press = change page + shift, release = shift off
-    -- Momentary: tap changes page (shift blips 1 frame), hold = page+shift
     if is_page_col(x) then
       if z == 1 then
         _G.current_page = page_cols[x]
@@ -88,15 +156,48 @@ function grid_key(x, y, z)
     return
   end
 
-  -- ROW 6: FIDELITY PRESET
-  if y == 6 and z == 1 then
+  -- ROWS 1-3: Interactive param bars
+  if y >= 1 and y <= 3 then
+    local page = pages[_G.current_page]
+    if not page then return end
+    if _G.distance_mode then return end
+
+    local param_name = get_param_for_row(page, y)
+    if not param_name then return end
+
+    if z == 1 then
+      -- Record press time
+      press_time[y] = clock.time()
+    else
+      -- Release: calculate hold duration
+      if press_time[y] then
+        local hold_time = clock.time() - press_time[y]
+        local target_norm = x / 16.0
+
+        if hold_time < 0.15 then
+          -- Tap: instant set
+          local minv = param_min(param_name)
+          local maxv = param_max(param_name)
+          params:set(param_name, minv + target_norm * (maxv - minv))
+        else
+          -- Hold: start ramp
+          start_ramp(y, param_name, target_norm, hold_time)
+        end
+        press_time[y] = nil
+      end
+    end
+    return
+  end
+
+  -- ROW 4: FIDELITY PRESET
+  if y == 4 and z == 1 then
     _G.current_fidelity = x
     apply_fidelity_preset(x)
     return
   end
 
-  -- ROW 7: INTERFERENCE PRESET
-  if y == 7 and z == 1 then
+  -- ROW 5: INTERFERENCE PRESET
+  if y == 5 and z == 1 then
     _G.current_interference = x
     apply_interference_preset(x)
     return
@@ -126,7 +227,7 @@ local function render_preset_row(row, current_val)
 end
 
 -- =========================================================
--- RENDER PAGE VISUALS (rows 1-3 = active params, row 4 = empty)
+-- RENDER PAGE VISUALS (rows 1-3 = active params)
 -- =========================================================
 
 function render_page_visuals()
@@ -139,65 +240,31 @@ function render_page_visuals()
           math.floor(4 + (x / 16) * 6) or 0)
       end
     end
-    -- Row 4: empty
-    for x = 1, 16 do grid_set_led(x, 4, 0) end
     return
   end
 
   local page = pages[_G.current_page]
   if not page then
-    for y = 1, 4 do
+    for y = 1, 3 do
       for x = 1, 16 do grid_set_led(x, y, 0) end
     end
     return
   end
 
-  local sa = _G.shift_active or false
-
-  -- Row 1: param 1
-  local p1 = sa and page.shift[1] or page.main[1]
-  if p1 then
-    local norm = (params:get(p1) - param_min(p1)) /
-      (param_max(p1) - param_min(p1) + 0.0001)
-    norm = util.clamp(norm, 0, 1)
-    local filled = math.floor(norm * 16)
-    for x = 1, 16 do
-      grid_set_led(x, 1, (x <= filled) and math.floor(5 + norm * 10) or 0)
+  for row = 1, 3 do
+    local p = get_param_for_row(page, row)
+    if p then
+      local norm = (params:get(p) - param_min(p)) /
+        (param_max(p) - param_min(p) + 0.0001)
+      norm = util.clamp(norm, 0, 1)
+      local filled = math.floor(norm * 16)
+      for x = 1, 16 do
+        grid_set_led(x, row, (x <= filled) and math.floor(5 + norm * 10) or 0)
+      end
+    else
+      for x = 1, 16 do grid_set_led(x, row, 0) end
     end
-  else
-    for x = 1, 16 do grid_set_led(x, 1, 0) end
   end
-
-  -- Row 2: param 2
-  local p2 = sa and page.shift[2] or page.main[2]
-  if p2 then
-    local norm = (params:get(p2) - param_min(p2)) /
-      (param_max(p2) - param_min(p2) + 0.0001)
-    norm = util.clamp(norm, 0, 1)
-    local filled = math.floor(norm * 16)
-    for x = 1, 16 do
-      grid_set_led(x, 2, (x <= filled) and math.floor(5 + norm * 10) or 0)
-    end
-  else
-    for x = 1, 16 do grid_set_led(x, 2, 0) end
-  end
-
-  -- Row 3: param 3
-  local p3 = sa and page.shift[3] or page.main[3]
-  if p3 then
-    local norm = (params:get(p3) - param_min(p3)) /
-      (param_max(p3) - param_min(p3) + 0.0001)
-    norm = util.clamp(norm, 0, 1)
-    local filled = math.floor(norm * 16)
-    for x = 1, 16 do
-      grid_set_led(x, 3, (x <= filled) and math.floor(5 + norm * 10) or 0)
-    end
-  else
-    for x = 1, 16 do grid_set_led(x, 3, 0) end
-  end
-
-  -- Row 4: always empty (separator)
-  for x = 1, 16 do grid_set_led(x, 4, 0) end
 end
 
 -- =========================================================
@@ -208,17 +275,23 @@ function grid_redraw()
   if not _grid then return end
 
   local ok, err = pcall(function()
-    -- ROWS 1-4: Page visuals
+    -- Process any active ramps
+    process_ramps()
+
+    -- ROWS 1-3: Page visuals (interactive param bars)
     render_page_visuals()
 
-    -- ROW 5: separator (always off)
-    for x = 1, 16 do grid_set_led(x, 5, 0) end
+    -- ROW 4: FIDELITY presets (moved from row 6)
+    render_preset_row(4, _G.current_fidelity)
 
-    -- ROW 6: FIDELITY presets
-    render_preset_row(6, _G.current_fidelity)
+    -- ROW 5: INTERFERENCE presets (moved from row 7)
+    render_preset_row(5, _G.current_interference)
 
-    -- ROW 7: INTERFERENCE presets
-    render_preset_row(7, _G.current_interference)
+    -- ROW 6-7: empty (freed by preset move)
+    for x = 1, 16 do
+      grid_set_led(x, 6, 0)
+      grid_set_led(x, 7, 0)
+    end
 
     -- ROW 8: Controls
     -- Col 1: PTT toggle (2=off, 11=on)

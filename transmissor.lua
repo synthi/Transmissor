@@ -4,6 +4,8 @@
 -- Based on concepts from EdgeField but completely rewritten for norns
 --
 -- Changelog:
+--   v1.2.0  Grid interactive (tap/hold ramp), presets rows 4-5,
+--           Shift inherits main when nil, Dispersion hybrid (Meteor Scatter)
 --   v1.1.2  Receiver hum 50Hz (audio domain), distance no override blend,
 --           Presets: locut 80→826, rx_bw rises 11-16 (noise preserved)
 --   v1.1.1  Whistle -20dB, SNR fix (multipath/AGC/compander),
@@ -150,7 +152,7 @@ function enc(n, d)
 
   local param_name
   if shift_active then
-    param_name = page.shift[n]
+    param_name = page.shift[n] or page.main[n]  -- inherit from main if shift is nil
   else
     param_name = page.main[n]
   end

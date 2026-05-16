@@ -1,5 +1,5 @@
 -- =========================================================
--- PARAMETERS — Transmissor v1.1.2
+-- PARAMETERS — Transmissor v1.2.0
 -- Defines all params, pages, presets (16+16)
 -- =========================================================
 

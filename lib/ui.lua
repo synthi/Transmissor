@@ -55,9 +55,9 @@ function ui_redraw()
       screen.move(0, 30)
       screen.text("ALL ENCODERS > DISTANCE")
     else
-      local idx1 = sa and page.shift[1] or page.main[1]
-      local idx2 = sa and page.shift[2] or page.main[2]
-      local idx3 = sa and page.shift[3] or page.main[3]
+      local idx1 = sa and (page.shift[1] or page.main[1]) or page.main[1]
+      local idx2 = sa and (page.shift[2] or page.main[2]) or page.main[2]
+      local idx3 = sa and (page.shift[3] or page.main[3]) or page.main[3]
 
       if idx1 then
         draw_param_bar(20, idx1, params:get(idx1) or 0,
