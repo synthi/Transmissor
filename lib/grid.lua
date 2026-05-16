@@ -53,13 +53,6 @@ function grid_key(x, y, z)
   if (now - last_key_time) < KEY_DEBOUNCE_MS then return end
   last_key_time = now
 
-  -- ANY PRESS → illuminate that button at level 15 momentarily
-  if z == 1 then
-    grid_state[y][x] = 15
-    _grid:led(x, y, 15)
-    _grid:refresh()
-  end
-
   -- SHIFT BUTTON (col 16, row 8) — momentáneo mientras se sostiene
   if y == 8 and x == 16 then
     _G.shift_active = (z == 1)
@@ -85,14 +78,14 @@ function grid_key(x, y, z)
 
   -- ROW 8
   if y == 8 then
-    if x == 8 then
-      -- DISTANCE MODE TOGGLE (col 8)
-      _G.distance_mode = not _G.distance_mode
-      return
-    elseif x >= 10 and x <= 14 then
-      -- PAGE SELECTOR (cols 10-14 = 5 pages)
-      _G.current_page = x - 9  -- 10→1, 11→2, 12→3, 13→4, 14→5
+    if x >= 1 and x <= 8 then
+      -- PAGE SELECTOR (cols 1-8 = pages 1-8)
+      _G.current_page = x
       _G.distance_mode = false  -- exit distance mode on page change
+      return
+    elseif x == 9 then
+      -- DISTANCE MODE TOGGLE (col 9)
+      _G.distance_mode = not _G.distance_mode
       return
     end
   end
@@ -223,16 +216,12 @@ function grid_redraw()
     render_preset_row(7, _G.current_interference)
 
     -- ROW 8:
-    -- Col 8: DISTANCE button
-    grid_set_led(8, 8, _G.distance_mode and 11 or 1)
-    -- Col 9: VACÍA
-    grid_set_led(9, 8, 0)
-    -- Cols 10-14: PAGE buttons (1=page active, 11=selected)
-    for x = 10, 14 do
-      grid_set_led(x, 8, (x - 9 == _G.current_page) and 11 or 1)
+    -- Cols 1-8: PAGE buttons (TX=1, AIR=2, NOISE=3, SPACE=4, TEXTURE=5, DESTROY=6, RX=7, MIX=8)
+    for px = 1, 8 do
+      grid_set_led(px, 8, (px == _G.current_page) and 11 or 1)
     end
-    -- Col 15: VACÍA
-    grid_set_led(15, 8, 0)
+    -- Col 9: DISTANCE button
+    grid_set_led(9, 8, _G.distance_mode and 11 or 1)
     -- Col 16: SHIFT button (4=inactive, 15=active)
     grid_set_led(16, 8, _G.shift_active and 15 or 4)
 

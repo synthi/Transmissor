@@ -359,7 +359,7 @@ Engine_Transmissor : CroneEngine {
 
             // Massive makeup gain to bring compressed noise floor up to nominal level.
             // agc_breath increases makeup gain, making pumping effect more violent.
-            sig = LeakDC.ar(compSig) * (5.0 + (agc_breath * 10.0));
+            sig = LeakDC.ar(compSig) * (10.0 + (agc_breath * 15.0));
 
             // Analog saturation to prevent digital clipping from massive makeup gain
             sig = sig.tanh;

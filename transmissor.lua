@@ -152,6 +152,17 @@ function key(n, z)
 end
 
 -- =========================================================
+-- MAIN REDRAW — Norns architectural requirement
+-- Must be top-level in the main script file
+-- =========================================================
+
+function redraw()
+  if _G.ui_redraw then
+    _G.ui_redraw()
+  end
+end
+
+-- =========================================================
 -- INIT
 -- =========================================================
 
@@ -189,17 +200,8 @@ function init()
     if grid_redraw then grid_redraw() end
   end, 1/25):start()
 
-  -- Screen redraw at 15fps — DIRECT DIAGNOSTIC TEST
-  -- Bypassing redraw() completely to test if metro + screen work
-  metro.init(function()
-    print("[Transmissor] METRO TICK")
-    screen.clear()
-    screen.level(15)
-    screen.move(10, 30)
-    screen.text("DIRECT TEST")
-    screen.update()
-    print("[Transmissor] METRO TICK DONE")
-  end, 1/15):start()
+  -- Screen redraw at 15fps (calls top-level redraw() which bridges to ui)
+  metro.init(redraw, 1/15):start()
 
   params:bang()
   print("[Transmissor] Ready")

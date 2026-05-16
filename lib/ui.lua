@@ -67,23 +67,8 @@ end
 -- OLED REDRAW
 -- =========================================================
 
-function redraw()
-  print("[Transmissor] redraw() called")  -- DIAGNOSTIC
+function ui_redraw()
   screen.clear()
-
-  -- HELLO WORLD TEST — uncomment full UI below once screen works
-  screen.level(15)
-  screen.move(0, 10)
-  screen.text("TRMS v1.0.6 HELLO")
-  screen.move(0, 25)
-  screen.text("page=" .. tostring(_G.current_page or "?"))
-  screen.move(0, 40)
-  screen.text("fidelity=" .. tostring(_G.current_fidelity or "?"))
-  screen.move(0, 55)
-  local dist = params:get("distance")
-  screen.text("dist=" .. tostring(dist or "?"))
-  screen.update()
-  do return end
 
   local cp = _G.current_page or 1
   local dm = _G.distance_mode or false
@@ -194,6 +179,6 @@ end
 -- =========================================================
 
 return {
-  redraw = redraw,
+  ui_redraw = ui_redraw,
   draw_param_bar = draw_param_bar
 }
